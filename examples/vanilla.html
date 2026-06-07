@@ -1,0 +1,64 @@
+<!doctype html>
+<!-- Minimal vanilla integration: connect → identify → chat.
+     Serve this file from any dev server and set your own companyId/pubsubUrl. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>usedesk-chat — vanilla example</title>
+    <style>
+      body { font: 14px/1.4 system-ui; max-width: 480px; margin: 40px auto; }
+      #log { border: 1px solid #ccc; border-radius: 8px; padding: 12px; height: 320px; overflow-y: auto; }
+      .msg { margin: 4px 0; }
+      .msg.mine { text-align: right; color: #0a58ca; }
+      form { display: flex; gap: 8px; margin-top: 8px; }
+      input { flex: 1; }
+    </style>
+  </head>
+  <body>
+    <h1>Support chat</h1>
+    <button id="open">Chat with us</button>
+    <div id="chat" hidden>
+      <div id="log"></div>
+      <form id="composer">
+        <input id="draft" placeholder="Type a message…" autocomplete="off" />
+        <button>Send</button>
+      </form>
+    </div>
+
+    <script type="module">
+      import { createChatStore } from "https://esm.sh/@musthavecat/usedesk-chat";
+
+      const store = createChatStore({
+        companyId: "12345_67890", // ← your <companyId>_<channelId>
+        pubsubUrl: "https://pubsubsec4.usedesk.ru", // ← your account's pubsub host
+      });
+
+      const log = document.getElementById("log");
+      store.subscribe(() => {
+        const { messages } = store.getSnapshot();
+        log.innerHTML = "";
+        for (const m of messages) {
+          const div = document.createElement("div");
+          div.className = `msg${m.type === "client_to_operator" ? " mine" : ""}`;
+          div.textContent = (m.name ? `${m.name}: ` : "") + m.text; // textContent = safe for HTML-bearing bot text
+          log.appendChild(div);
+        }
+        log.scrollTop = log.scrollHeight;
+      });
+
+      document.getElementById("open").onclick = async (e) => {
+        e.target.hidden = true;
+        document.getElementById("chat").hidden = false;
+        const ok = await store.connect();
+        if (!ok) alert("Chat is unavailable right now."); // or loadOfficialWidget()
+      };
+
+      document.getElementById("composer").onsubmit = (e) => {
+        e.preventDefault();
+        const draft = document.getElementById("draft");
+        store.send(draft.value);
+        draft.value = "";
+      };
+    </script>
+  </body>
+</html>

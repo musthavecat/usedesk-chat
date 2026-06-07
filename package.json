@@ -1,0 +1,80 @@
+{
+  "name": "@musthavecat/usedesk-chat",
+  "version": "0.1.0",
+  "description": "Unofficial headless chat client for Usedesk — talk to the Usedesk chat socket with your own UI instead of the 800KB script widget. Framework-agnostic core + Vue 3 / React 18 bindings.",
+  "license": "MIT",
+  "author": "Yur (https://github.com/musthavecat)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/musthavecat/usedesk-chat.git"
+  },
+  "homepage": "https://github.com/musthavecat/usedesk-chat#readme",
+  "bugs": "https://github.com/musthavecat/usedesk-chat/issues",
+  "keywords": [
+    "usedesk",
+    "chat",
+    "support",
+    "live-chat",
+    "widget",
+    "headless",
+    "socket.io",
+    "customer-support",
+    "vue",
+    "react"
+  ],
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./vue": {
+      "types": "./dist/vue.d.ts",
+      "import": "./dist/vue.js"
+    },
+    "./react": {
+      "types": "./dist/react.d.ts",
+      "import": "./dist/react.js"
+    }
+  },
+  "bin": {
+    "usedesk-chat": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "docs/PROTOCOL.md"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.json",
+    "check-types": "tsc -p tsconfig.json --noEmit",
+    "doctor": "node dist/cli.js doctor",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "socket.io-client": "^4.8.1"
+  },
+  "peerDependencies": {
+    "react": ">=18.0.0",
+    "vue": ">=3.0.0"
+  },
+  "peerDependenciesMeta": {
+    "react": { "optional": true },
+    "vue": { "optional": true }
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "react": "^19.0.0",
+    "typescript": "^5.3.3",
+    "vue": "^3.5.20"
+  }
+}

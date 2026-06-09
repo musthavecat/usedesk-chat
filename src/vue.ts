@@ -24,6 +24,15 @@ export interface UseUsedeskChatReturn
     | "send"
     | "sendFile"
     | "setClient"
+    | "sendFeedback"
+    | "clickButton"
+    | "sendOfflineForm"
+    | "submitForm"
+    | "fetchFormFields"
+    | "submitFormMessage"
+    | "sendAdditionalFields"
+    | "sendAvatar"
+    | "retry"
     | "loadOlder"
     | "checkIdentity"
     | "resetSession"
@@ -51,6 +60,15 @@ export const useUsedeskChat = (store: ChatStore): UseUsedeskChatReturn => {
     send: store.send,
     sendFile: store.sendFile,
     setClient: store.setClient,
+    sendFeedback: store.sendFeedback,
+    clickButton: store.clickButton,
+    sendOfflineForm: store.sendOfflineForm,
+    submitForm: store.submitForm,
+    fetchFormFields: store.fetchFormFields,
+    submitFormMessage: store.submitFormMessage,
+    sendAdditionalFields: store.sendAdditionalFields,
+    sendAvatar: store.sendAvatar,
+    retry: store.retry,
     loadOlder: store.loadOlder,
     checkIdentity: store.checkIdentity,
     resetSession: store.resetSession,

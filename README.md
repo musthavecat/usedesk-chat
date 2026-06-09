@@ -137,13 +137,19 @@ interface ChatSnapshot {
   hasIdentity: boolean;      // a persisted session token exists
   operatorsStatus: unknown;  // raw CHANGE_OPERATORS_STATUS payload
   connected: boolean;        // socket connectivity
+  noOperators: boolean;      // no operators online → show the offline form
+  callbackSettings: Record<string, unknown> | null;  // offline-form config (INITED)
+  feedback: Record<number, "like" | "dislike">;      // CSAT choice per message id
   error: { code: string; message: string } | null;
 }
 
 store.connect();             // Promise<boolean> — false → use the fallback
 store.send(text);
 store.sendFile(file);        // REST upload + socket announce
-store.setClient({ name, email, phone, additionalFields });
+store.setClient({ name, email, phone, note, additionalId, additionalFields });
+store.sendFeedback(messageId, liked);  // CSAT 👍/👎 on an operator/bot message
+store.clickButton(button);   // inline button: opens link buttons, sends reply buttons
+store.sendOfflineForm({ name, email, message, topic?, fields? });
 store.loadOlder(limit?);     // prepend an older history page
 store.checkIdentity();       // re-read the persisted token
 store.resetSession();        // ⚠️ call on logout — prevents merging two users' chats
@@ -170,16 +176,54 @@ chat.on("message", (m) => {});          // realtime (incl. echo of your own)
 chat.on("olderMessages", (ms) => {});   // loadOlder() response
 chat.on("operatorsStatus", (s) => {});
 chat.on("connection", ({ connected }) => {});
+chat.on("feedback", ({ messageId, liked }) => {});      // your CSAT choice (optimistic)
+chat.on("feedbackAnswer", ({ status }) => {});          // CALLBACK_ANSWER ack
 chat.on("error", ({ code, message }) => {});
 
 const state = await chat.connect();     // rejects on timeout → fallback
-chat.setClient({ name, email });
+chat.setClient({ name, email, additionalId, note });
 chat.sendMessage("text");
 await chat.sendFile(file);              // 15 MiB widget-side limit
 chat.loadOlder(firstMessageId);
+chat.sendFeedback(messageId, true);     // 👍 / 👎 (CALLBACK action)
+const url = chat.clickButton(button);   // bot quick-reply / link button
+await chat.sendOfflineForm({ message, name, email }); // when state.noOperators
 chat.resetSession();                    // on logout
 chat.dispose();
 ```
+
+Bot **buttons** and **lead-forms** are embedded in the message text as markup —
+`{{button:name;url;type;visibility}}` and `{{form;name;type;required}}` — and decoded
+automatically into `ChatMessage.buttons` (`{ title, url, target, visible }`) and
+`ChatMessage.forms`, stripped from `text`. Render buttons, then `chat.clickButton(button)`
+(opens link buttons / sends reply buttons). `parseButtonsMessage` / `parseFormMessage`
+are exported standalone.
+
+For **forms**, the full official flow is: `chat.fetchFormFields(ids)` (POST
+`/v1/widget/field_list`) loads each custom field's input type + options so you can render
+text inputs / checkboxes / dropdowns, then `chat.submitFormMessage([{ field, value }, …])`
+(POST `/v1/widget/custom_form/save`) submits the structured answers. For a simple
+built-in-only form, `chat.submitForm([{ field, value }, …])` is a one-call shortcut that
+maps the answers to a `SET_CLIENT` identify instead.
+
+When a message requests a CSAT rating, `message.feedbackRequested` is true (and
+`message.feedbackRating` holds an already-given `"like"`/`"dislike"`) — that's when to
+render 👍/👎 and call `chat.sendFeedback(message.id, liked)`.
+
+`state.noOperators` / `state.callbackSettings` (from `INITED`) drive the offline-form
+path; the offline form posts over REST (`widget.js/post`), so it works even without an
+open socket. `chat.sendAdditionalFields(fields, nested?)` attaches custom ticket fields,
+`chat.sendAvatar(blob, identity?)` uploads the visitor avatar, and the `firstMessage`
+option auto-sends an opener on a brand-new chat.
+
+### Optimistic send (opt-in)
+
+With `optimistic: true`, `sendMessage` renders the message immediately with
+`message.sendStatus === "sending"` and a `message.localId`. The server echo (matched by
+`payload.message_id`) reconciles it in place to `"sent"`; if the socket is down it flips
+to `"failed"` and you can `chat.retry(message.localId)`. It's **off by default** because
+reconciliation relies on the server echoing `message_id` back — verify that for your
+account before enabling, or duplicate messages will appear.
 
 ### Lifecycle notes
 
@@ -260,6 +304,30 @@ some accounts (`centrifugoEnabled`) — that's a second `TransportFactory` away,
 client rewrite. Discovery already reports `centrifugoEnabled`, and the client logs
 `centrifugo_enabled_unsupported` loudly so your fallback path kicks in.
 
+## Knowledge Base
+
+A separate, headless REST client for the Usedesk Knowledge Base — independent of the
+chat socket. It authenticates with the KB `api_token` + numeric `knowledgeBaseId`
+(not the chat company id):
+
+```ts
+import { createKnowledgeBase } from "@musthavecat/usedesk-chat";
+
+const kb = createKnowledgeBase({ knowledgeBaseId: 123, apiToken: "…" });
+
+const sections = await kb.getSections();              // sections → categories → stubs
+const { articles } = await kb.searchArticles({ query: "refund" });
+const article = await kb.getArticle(456);             // full body (HTML)
+await kb.addArticleView(456);                         // view telemetry
+await kb.rateArticle(456, true);                      // 👍 / 👎
+await kb.sendArticleReview({                           // "didn't help" → opens a ticket
+  articleId: 456, subject: "…", message: "…", tag: "kb", email: "a@b.c",
+});
+```
+
+Endpoints and params are verified against the official mobile SDK; response types
+mirror its models. Bring your own UI — this is data only.
+
 ## Protocol documentation
 
 The full reverse-engineered protocol reference — actions, payload shapes, message
@@ -273,6 +341,16 @@ we know it's the only public write-up of the Usedesk chat wire protocol.
 - Service messages with empty text exist on the wire; the client filters them with
   `isRenderableMessage` before they reach your UI.
 - Attachments arrive as `message.file` with `previewLink` (images) and download links.
+
+## Development
+
+```sh
+bun test          # forms, token-store, discovery, KB, client (fake transport), store
+bun run build     # tsc → dist (ESM + .d.ts)
+```
+
+The client is built around an injectable `ChatTransport`, so the whole protocol is
+unit-tested offline with a fake transport — no socket, no network.
 
 ## License
 

@@ -43,7 +43,27 @@ export interface SetClientAction {
     email?: string;
     username?: string;
     phone?: string;
+    /** Free-text note attached to the ticket/client. */
+    note?: string;
+    /** Stable external customer id (cross-device identify key). */
+    additional_id?: string;
     additional_fields?: Array<{ id: number; value: string | number | boolean }>;
+  };
+}
+
+/**
+ * Feedback / inline-action callback (`@@server/chat/CALLBACK`). Used for CSAT
+ * thumbs on operator/bot messages: `data` = `"LIKE" | "DISLIKE"`, `messageId`
+ * = the rated message id (as a string). `type: "action"` is the only observed
+ * variant. Present in the web widget bundle; the server acks with
+ * `@@chat/current/CALLBACK_ANSWER`.
+ */
+export interface CallbackAction {
+  type: `${typeof SERVER_PREFIX}CALLBACK`;
+  payload: {
+    data: "LIKE" | "DISLIKE" | (string & {});
+    type: "action" | (string & {});
+    messageId?: string;
   };
 }
 
@@ -67,6 +87,8 @@ export interface SendMessageAction {
     text: string;
     file?: ChatFilePayload;
     fileUploadType?: boolean;
+    /** Local id the server echoes back, for optimistic reconciliation. */
+    payload?: { message_id?: string };
   };
 }
 
@@ -90,6 +112,7 @@ export type ChatServerAction =
   | SetClientAction
   | SendMessageAction
   | GetMessagesAction
+  | CallbackAction
   | PulseAction;
 
 // ── server → client actions (`@@chat/current/*`, `@@redbone/*`) ─────────
@@ -117,6 +140,44 @@ export interface ChatReceivedFile {
   fullLink?: string;
 }
 
+/**
+ * Inline button carried on bot/trigger messages. A button with a `url` is a
+ * link (open it on click); otherwise clicking sends `title` back as a regular
+ * message. `visible: false` buttons are hidden (e.g. already-taken branches).
+ */
+export interface ChatMessageButton {
+  title: string;
+  url: string;
+  /** Link target for url buttons: `blank` (new tab) or `self` (default). */
+  target?: "blank" | "self";
+  visible: boolean;
+}
+
+/**
+ * Client attribute a bot form field maps to (the `associate` in the markup).
+ * `additionalField` carries a numeric `fieldId` (a ticket custom field).
+ */
+export type FormFieldType =
+  | "email"
+  | "phone"
+  | "name"
+  | "note"
+  | "position"
+  | "additionalField";
+
+/**
+ * A bot lead-form field, decoded from the `{{form;name;type;required}}` markup
+ * embedded in a bot message's text (see `parseFormMessage` in `forms.ts`).
+ */
+export interface ChatMessageFormField {
+  /** Field key/label from the markup. */
+  name: string;
+  type: FormFieldType;
+  /** Set only when `type === "additionalField"`. */
+  fieldId?: number;
+  required: boolean;
+}
+
 export interface ChatMessage {
   id: number;
   /** May contain HTML (`<br>`) — render as constrained rich text, never raw. */
@@ -137,6 +198,24 @@ export interface ChatMessage {
     [key: string]: unknown;
   } | null;
   file?: ChatReceivedFile | null;
+  /** Inline quick-reply / link buttons, decoded from `{{button;…}}` markup. */
+  buttons?: ChatMessageButton[];
+  /** Lead-form fields decoded from `{{form;…}}` markup in a bot message. */
+  forms?: ChatMessageFormField[];
+  /**
+   * This message asks the visitor to rate the conversation (render 👍/👎).
+   * Derived from `payload.csi` / `payload.userRating`.
+   */
+  feedbackRequested?: boolean;
+  /** The rating already submitted for this message, when present. */
+  feedbackRating?: "like" | "dislike";
+  /**
+   * Local id of an optimistic outgoing message (set with `optimistic: true`);
+   * matches the server echo's `payload.message_id`. Absent on received messages.
+   */
+  localId?: string;
+  /** Optimistic send lifecycle; undefined for received messages. */
+  sendStatus?: "sending" | "sent" | "failed";
   from?: "client" | "trigger" | string;
 }
 
@@ -210,6 +289,12 @@ export interface RedboneErrorEvent {
   message: string;
 }
 
+/** Ack for a CALLBACK (feedback) action — `answer.status` = accepted. */
+export interface CallbackAnswerEvent {
+  type: "@@chat/current/CALLBACK_ANSWER";
+  answer?: { status?: boolean };
+}
+
 export type ChatClientEvent =
   | InitedEvent
   | AddMessageEvent
@@ -219,4 +304,5 @@ export type ChatClientEvent =
   | ChangeOperatorsStatusEvent
   | RequestEmailEvent
   | ToReloadChatEvent
+  | CallbackAnswerEvent
   | RedboneErrorEvent;

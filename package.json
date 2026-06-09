@@ -1,6 +1,6 @@
 {
   "name": "@musthavecat/usedesk-chat",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Unofficial headless chat client for Usedesk — talk to the Usedesk chat socket with your own UI instead of the 800KB script widget. Framework-agnostic core + Vue 3 / React 18 bindings.",
   "license": "MIT",
   "author": "Yur (https://github.com/musthavecat)",
@@ -51,11 +51,13 @@
     "node": ">=18.0.0"
   },
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "registry": "https://npm.pkg.github.com"
   },
   "scripts": {
     "build": "rm -rf dist && tsc -p tsconfig.json",
     "check-types": "tsc -p tsconfig.json --noEmit",
+    "test": "bun test",
     "doctor": "node dist/cli.js doctor",
     "prepublishOnly": "npm run build"
   },

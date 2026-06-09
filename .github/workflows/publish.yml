@@ -1,0 +1,30 @@
+name: Publish to GitHub Packages
+
+# Publishes @musthavecat/usedesk-chat to the repo's GitHub Packages npm registry
+# whenever a semver tag is pushed (e.g. `git tag v0.2.0 && git push --tags`).
+# Auth uses the built-in GITHUB_TOKEN — no secret to configure (the scope
+# `@musthavecat` matches the repo owner, which GitHub Packages requires).
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://npm.pkg.github.com
+          scope: "@musthavecat"
+      - run: npm ci
+      # `prepublishOnly` builds dist via tsc before publishing.
+      - run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
